@@ -74,12 +74,13 @@ declare module 'pdfkit-table'
 		x?: number; //default doc.x
 		y?: number; //default doc.y
 		divider?: Divider;
-		columnsSize?: number[];
+		columnsWidth?: number[];
 		columnSpacing?: number; //default 5
 		padding?: number[]; 
 		addPage?: boolean; //default false
 		hideHeader?: boolean;
 		minRowHeight?: number;
+		rowHeight?: number;
 		prepareHeader?: () => PDFDocumentWithTables;
 		prepareRow?: (
 			row?: any,

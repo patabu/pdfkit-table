@@ -5,16 +5,23 @@
 const PDFDocument = require("pdfkit");
 // const EventEmitter = require('events').EventEmitter;
 
+const rowHeights = {
+  minimum: 1,
+  medium: 2,
+  maximum: 3
+}
+
 class PDFDocumentWithTables extends PDFDocument {
   
+  columnSpacing = 0;
+  columnsWidth = [];
+  columnsPosition = [];
+  columnWidth = 0;
+
   constructor(option) {
     super(option);
     this.opt = option;
     // this.emitter = new EventEmitter();
-  }
-
-  logg(...args) {
-    // console.log(args);
   }
 
   /**
@@ -58,7 +65,7 @@ class PDFDocumentWithTables extends PDFDocument {
   /**
    * table
    * @param {Object} table 
-   * @param {Object} options 
+   * @param {Options} options 
    * @param {Function} callback 
    */
   table(table, options, callback) {
@@ -81,6 +88,7 @@ class PDFDocumentWithTables extends PDFDocument {
         options.addPage || (options.addPage = false);
         options.absolutePosition || (options.absolutePosition = false);
         options.minRowHeight || (options.minRowHeight = 0);
+        options.rowHeight || (options.rowHeight = rowHeights.medium); // * 1: minimum, 2: medium, 3: large
         // TODO options.hyperlink || (options.hyperlink = { urlToLink: false, description: null });
         
         // divider lines
@@ -95,19 +103,15 @@ class PDFDocumentWithTables extends PDFDocument {
     
         const title            = table.title    ? table.title    : ( options.title    || '' ) ;
         const subtitle         = table.subtitle ? table.subtitle : ( options.subtitle || '' ) ;
-
-        this.logg('layout', this.page.layout);
-        this.logg('size', this.page.size);
-        this.logg('margins', this.page.margins);
-        // this.logg('options', this.options);
     
         // const columnIsDefined  = options.columnsSize.length ? true : false;
-        const columnSpacing    = options.columnSpacing || 3; // 15
-          let columnSizes      = [];
-          let columnPositions  = []; // 0, 10, 20, 30, 100
-          let columnWidth      = 0;
+        const columnSpacing    = options.columnSpacing || 3; // TODO: Renaming in rowSpacing! Defines the size or space occupied by columns
+          let columnsWidth     = [];
+          let columnsPosition  = []; // 0, 10, 20, 30, 100
+          let columnWidth      = 0; // * Is used only when columns
     
         const rowDistance      = 0.5;
+        const rowHeight        = options.rowHeight;
           let cellPadding      = {top: 0, right: 0, bottom: 0, left: 0}; // universal
     
         const prepareHeader    = options.prepareHeader || (() => this.fillColor('black').font("Helvetica-Bold").fontSize(8).fill());
@@ -139,34 +143,27 @@ class PDFDocumentWithTables extends PDFDocument {
           startX = this.page.margins.left;
         }
     
-        const createTitle = ( data, size, opacity ) => {
-          
-          // Title
-          if(!data) return;
+        const createTitle = (data, size, opacity) => {
+          if (!data) return;
     
           // get height line
           // let cellHeight = 0;
-          // if string
-          if(typeof data === 'string' ){
-            // font size
-            this.fillColor('black').fontSize(8).fontSize(size).opacity(opacity).fill();
-            // this.fillColor('black').font("Helvetica").fontSize(8).fontSize(size).opacity(opacity).fill();
+          if (typeof data === 'string'){
+            this.fillColor('black').fontSize(size).opacity(opacity).fill();
 
-            // const titleHeight = this.heightOfString(data, {
-            //   width: tableWidth,
-            //   align: 'left',
-            // });
-            this.logg(data, titleHeight); // 24
+            const tHeight = this.heightOfString(data, {
+              width: tableWidth,
+              align: 'left',
+            });
 
-            // write 
-            this.text( data, startX, startY ).opacity( 1 ); // moveDown( 0.5 )
+            // console.log(tHeight);
+
+            this.text(data, startX, startY).opacity(1); // moveDown( 0.5 )
             // startY += cellHeight;
             startY = this.y + columnSpacing + 2;
-            // else object
-          } else if(typeof data === 'object' ){
-            // title object
-            data.fontFamily && this.font( data.fontFamily );
-            data.label && this.fillColor( data.color || 'black').fontSize( data.fontSize || size ).text( data.label, startX, startY ).fill();
+          } else if (typeof data === 'object'){
+            data.fontFamily && this.font(data.fontFamily);
+            data.label && this.fillColor(data.color || 'black').fontSize(data.fontSize || size).text(data.label, startX, startY).fill();
 
             startY = this.y + columnSpacing + 2;
 
@@ -222,8 +219,8 @@ class PDFDocumentWithTables extends PDFDocument {
           type || (type = 'horizontal'); // header | horizontal | vertical 
 
           // distance
-          const d = rowDistance * 1.5;
-          // margin
+          const d = rowDistance;
+          // Right margin table
           const m = options.x || this.page.margins.left || 30;
           // disabled
           const s = options.divider[type].disabled || false;
@@ -373,10 +370,13 @@ class PDFDocumentWithTables extends PDFDocument {
             // console.log(cellp);
     
             // calc height size of string
-            const cellHeight = this.heightOfString(text, {
-              width: columnSizes[i] - (cellp.left + cellp.right),
+            let cellHeight = this.heightOfString(text, {
+              width: columnsWidth[i] - (cellp.left + cellp.right),
               align: 'left',
             });
+
+            // if (rowHeight === rowHeights.minimum) cellHeight = cellHeight / 2;
+            // else if (rowHeight === rowHeights.maximum) cellHeight = cellHeight * 2;
             
             result = Math.max(result, cellHeight);    
           });
@@ -393,55 +393,45 @@ class PDFDocumentWithTables extends PDFDocument {
         // Calc columns size
         
         const calcColumnSizes = () => {
+          let t_columnsWidth = [];
+          let t_columnsPosition = [];
+          let t_tableWidth = 0;
     
-          let h = []; // header width
-          let p = []; // position
-          let w = 0;  // table width
-    
-          // (table width) 1o - Max size table
-          w = this.page.width - this.page.margins.right - ( options.x || this.page.margins.left );
+          // * Set temp (max) table width
+          t_tableWidth = this.page.width - (options.x || this.page.margins.left) - this.page.margins.right;
           // (table width) 2o - Size defined
-          options.width && ( w = parseInt(options.width) || String(options.width).replace(/[^0-9]/g,'') >> 0 );
+          options.width && ( t_tableWidth = parseInt(options.width) || String(options.width).replace(/[^0-9]/g,'') >> 0 );
     
-          // (table width) if table is percent of page 
-          // ...
-    
-          // (size columns) 1o
-          table.headers.forEach( el => {
-            el.width && h.push(el.width); // - columnSpacing
+          // - 1. columnsWidth is decided by headers width, if defined
+          table.headers.forEach(header => {
+            header.width && t_columnsWidth.push(header.width); // - columnSpacing
           });
-          // (size columns) 2o
-          if(h.length === 0) {
-            h = options.columnsSize;
-          } 
-          // (size columns) 3o
-          if(h.length === 0) {
-            columnWidth = ( w / table.headers.length ); // - columnSpacing // define column width
-            table.headers.forEach( () => h.push(columnWidth) );
+
+          // - 2. columnsWidth is decided by options.columnsSize (e.g.: [150, 150, 150]), if defined
+          if(t_columnsWidth.length === 0) t_columnsWidth = options.columnsSize; 
+
+          // - 3. columnsWidth is divided equally by headers length
+          if(t_columnsWidth.length === 0) {
+            columnWidth = ( t_tableWidth / table.headers.length ); // - columnSpacing // define column width
+            table.headers.forEach( () => t_columnsWidth.push(columnWidth) );
           }
     
-          // Set columnPositions
-          h.reduce((prev, curr, indx) => {
-            p.push(prev >> 0);
-            return prev + curr;
-          },( options.x || this.page.margins.left ));
+          // * Set columns position
+          t_columnsWidth.reduce((previousWidth, currentWidth) => {
+            t_columnsPosition.push(previousWidth >> 0);
+            return previousWidth + currentWidth;
+          },(options.x || this.page.margins.left));
     
-          // !Set columnSizes
-          h.length && (columnSizes = h);
-          p.length && (columnPositions = p);
+          // * Set columns width and position
+          t_columnsWidth.length && (columnsWidth = t_columnsWidth);
+          t_columnsPosition.length && (columnsPosition = t_columnsPosition);
     
-          // (table width) 3o - Sum last position + lest header width
-          w = p[p.length-1] + h[h.length-1];
-    
-          // !Set tableWidth
-          w && ( tableWidth = w );
+          // * Set table width
+          t_tableWidth = t_columnsPosition[t_columnsPosition.length-1] + t_columnsWidth[t_columnsWidth.length-1];
+          t_tableWidth && (tableWidth = t_tableWidth);
           
           // Ajust spacing
-          // tableWidth = tableWidth - (h.length * columnSpacing); 
-    
-          this.logg('columnSizes', h);
-          this.logg('columnPositions', p);
-    
+          // tableWidth = tableWidth - (h.length * columnSpacing);     
         };
     
         calcColumnSizes();
@@ -456,18 +446,15 @@ class PDFDocumentWithTables extends PDFDocument {
           // calc header height
           if(this.headerHeight === 0){
             this.headerHeight = computeRowHeight(table.headers, true);
-            this.logg(this.headerHeight, 'headers');
           }
 
           // calc first table line when init table
           if(firstLineHeight === 0){
             if(table.datas.length > 0){
               firstLineHeight = computeRowHeight(table.datas[0], true);
-              this.logg(firstLineHeight, 'datas');
             }
             if(table.rows.length > 0){
               firstLineHeight = computeRowHeight(table.rows[0], true);
-              this.logg(firstLineHeight, 'rows');
             }
           }
 
@@ -480,7 +467,7 @@ class PDFDocumentWithTables extends PDFDocument {
           if(firstLineHeight > maxY) {
             // lockAddHeader = true;
             lockAddPage = true;
-            this.logg('CRAZY! This a big text on cell');
+            console.log('CRAZY! This a big text on cell');
           } else if(calc > maxY) { // && !lockAddPage
             // lockAddHeader = false;
             lockAddPage = true;
@@ -541,7 +528,7 @@ class PDFDocumentWithTables extends PDFDocument {
                 const rectCell = {
                   x: lastPositionX, 
                   y: startY - columnSpacing - (rowDistance * 2), 
-                  width: columnSizes[i], 
+                  width: columnsWidth[i], 
                   height: this.headerHeight + columnSpacing,
                 };
     
@@ -555,11 +542,11 @@ class PDFDocumentWithTables extends PDFDocument {
                 this.text(header, 
                   lastPositionX + (cellPadding.left), 
                   startY, {
-                  width: Number(columnSizes[i]) - (cellPadding.left + cellPadding.right),
+                  width: Number(columnsWidth[i]) - (cellPadding.left + cellPadding.right),
                   align: 'left',
                 });
                 
-                lastPositionX += columnSizes[i] >> 0;
+                lastPositionX += columnsWidth[i] >> 0;
     
               });
               
@@ -570,7 +557,7 @@ class PDFDocumentWithTables extends PDFDocument {
     
                 let {label, width, renderer, align, headerColor, headerOpacity, headerAlign, padding} = dataHeader;
                 // check defination
-                width = width || columnSizes[i];
+                width = width || columnsWidth[i];
                 align = headerAlign || align || 'left';
                 // force number
                 width = width >> 0;
@@ -645,13 +632,53 @@ class PDFDocumentWithTables extends PDFDocument {
     
         // End header
         addHeader();
+
+        function separateProperties(property) {
+          // Espressione regolare per trovare le sottostringhe di tipo "[x]" dove x è un numero
+          let regex = /\[\d+\]|\./g;
+          // Array per immagazzinare i risultati
+          let risultati = [];
+          // Variabile temporanea per immagazzinare le parole
+          let temp = '';
+          
+          for (let i = 0; i < property.length; i++) {
+              let char = property[i];
+              // Se il carattere corrente è un punto o inizia una sottostringa di tipo "[x]"
+              if (char === '.' || (char === '[' && property.slice(i).match(/^\[\d+\]/))) {
+                  // Se abbiamo una parola temporanea, la aggiungiamo ai risultati
+                  if (temp !== '') {
+                      risultati.push(temp);
+                      temp = '';
+                  }
+                  // Se è un punto, lo ignoriamo
+                  if (char === '.') {
+                      continue;
+                  }
+                  // Troviamo la sottostringa di tipo "[x]"
+                  let match = property.slice(i).match(/^\[\d+\]/)[0];
+                  // Aggiungiamo il numero convertito ai risultati
+                  risultati.push(parseInt(match.slice(1, -1), 10));
+                  // Incrementiamo l'indice i per saltare la sottostringa "[x]"
+                  i += match.length - 1;
+              } else {
+                  // Aggiungiamo il carattere corrente alla parola temporanea
+                  temp += char;
+              }
+          }
+          // Aggiungiamo l'ultima parola se esiste
+          if (temp !== '') {
+              risultati.push(temp);
+          }
+          
+          return risultati;
+        }
         
         // Datas
         table.datas.forEach((row, i) => {
     
           this.datasIndex = i;
           const rowHeight = computeRowHeight(row, false);
-          this.logg(rowHeight);
+          console.log(rowHeight);
     
           // Switch to next page if we cannot go any further because the space is over.
           // For safety, consider 3 rows margin instead of just one
@@ -698,12 +725,14 @@ class PDFDocumentWithTables extends PDFDocument {
     
             // allow the user to override style for rows
             prepareRowOptions(row);
-            prepareRow(row, index, i, rectRow, rectCell,);
+            prepareRow(row, index, i, rectRow, rectCell);
     
-            let text = row[property];
+            const nestedProperties = separateProperties(property);
+            let text = row;
+            for (const property of nestedProperties) text = text[property];
     
             // cell object
-            if(typeof text === 'object' ){
+            if(typeof text === 'object'){
     
               text = String(text.label); // get label
               // row[property].hasOwnProperty('options') && prepareRowOptions(row[property]); // set style
@@ -801,7 +830,7 @@ class PDFDocumentWithTables extends PDFDocument {
     
           this.rowsIndex = i;
           const rowHeight = computeRowHeight(row, false);
-          this.logg(rowHeight);
+          console.log(rowHeight);
 
           // Switch to next page if we cannot go any further because the space is over.
           // For safety, consider 3 rows margin instead of just one
@@ -816,7 +845,7 @@ class PDFDocumentWithTables extends PDFDocument {
           lockAddPage = false;
           
           const rectRow = {
-            x: columnPositions[0], 
+            x: columnsPosition[0], 
             // x: startX, 
             y: startY - columnSpacing - (rowDistance * 2), 
             width: tableWidth - startX, 
@@ -837,7 +866,7 @@ class PDFDocumentWithTables extends PDFDocument {
               // x: columnPositions[index],
               x: lastPositionX,
               y: startY - columnSpacing - (rowDistance * 2),
-              width: columnSizes[index],
+              width: columnsWidth[index],
               height: rowHeight + columnSpacing,
             }
     
@@ -863,7 +892,7 @@ class PDFDocumentWithTables extends PDFDocument {
             let topTextToAlignVertically = 0;
             if(valign && valign !== 'top'){
               const heightText = this.heightOfString(cell, {
-                width: columnSizes[index] - (cellPadding.left + cellPadding.right),
+                width: columnsWidth[index] - (cellPadding.left + cellPadding.right),
                 align: align,
               }); 
               // line height, spacing hehight, cell and text diference
@@ -874,11 +903,11 @@ class PDFDocumentWithTables extends PDFDocument {
             this.text(cell, 
               lastPositionX + (cellPadding.left),
               startY + topTextToAlignVertically, {
-              width: columnSizes[index] - (cellPadding.left + cellPadding.right),
+              width: columnsWidth[index] - (cellPadding.left + cellPadding.right),
               align: align,
             });
     
-            lastPositionX += columnSizes[index];
+            lastPositionX += columnsWidth[index];
     
           });
     
