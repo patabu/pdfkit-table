@@ -729,7 +729,10 @@ class PDFDocumentWithTables extends PDFDocument {
     
             const nestedProperties = separateProperties(property);
             let text = row;
-            for (const property of nestedProperties) text = text[property];
+            for (const property of nestedProperties) {
+              text = text[property];
+              if (text === undefined) break;
+            }
     
             // cell object
             if(typeof text === 'object'){
