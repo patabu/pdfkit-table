@@ -674,7 +674,6 @@ class PDFDocumentWithTables extends PDFDocument {
     
           this.datasIndex = i;
           const rowHeight = computeRowHeight(row, false);
-          console.log(rowHeight);
     
           // Switch to next page if we cannot go any further because the space is over.
           // For safety, consider 3 rows margin instead of just one
@@ -829,7 +828,6 @@ class PDFDocumentWithTables extends PDFDocument {
     
           this.rowsIndex = i;
           const rowHeight = computeRowHeight(row, false);
-          console.log(rowHeight);
 
           // Switch to next page if we cannot go any further because the space is over.
           // For safety, consider 3 rows margin instead of just one
