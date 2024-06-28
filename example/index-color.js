@@ -33,13 +33,19 @@ const tableArray = {
     ["England", "33%", "+4.44%"],
     ["Brazil", "88%", "+2.44%"],
   ],
+  // options: {
+  //   divider: {
+  //     horizontal: { disabled: true, width: 0.5, opacity: 0.5 },
+  //   },
+  // }
 };
-doc.table( tableArray, { 
-  columnsSize: [150,150,150], 
+
+doc.table(tableArray, { 
+  columnsWidth: [150,150,150], 
   prepareRow: (row, indexColumn, indexRow, rectRow) => {
     doc.font("Helvetica").fontSize(8);
-    indexColumn === 0 && doc.addBackground(rectRow,'blue',0.3);
-  }, 
+    // indexColumn === 0 && doc.addBackground(rectRow,'blue',0.3);
+  }
 }); // A4 595.28 x 841.89 (portrait) (about width sizes)
 
 doc.moveDown(); // separate tables
@@ -140,6 +146,9 @@ const table = {
       "105.99",
     ],
   ],
+  options: {
+    rowDistance: 0
+  }
 };
 
 doc.table(table, {
