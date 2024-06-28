@@ -158,7 +158,9 @@ const data = [
 ]
 
 const columns = 2 + (gruppiDiSpesaMillesimali.length * 2) + gruppiDiSpesaIndividuali.length + 5;
-const width = (doc.page.width - 30*2) / columns;
+console.log(columns);
+const width = (doc.page.width - (docData.margin.x * 2)) / columns;
+
 
 let headers = [
     { label:"Scala/Int", property: 'scala', width: width },

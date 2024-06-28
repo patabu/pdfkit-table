@@ -340,7 +340,7 @@ class PDFDocumentWithTables extends PDFDocument {
           let cellp;
     
           // if row is object, content with property and options
-          if(!Array.isArray(row) && typeof row === 'object' && !row.hasOwnProperty('property')){
+          if(!Array.isArray(row) && typeof row === 'object' && !row.hasOwnProperty('property')) {
             const cells = []; 
             // get all properties names on header
             table.headers.forEach(({property}) => cells.push(row[property]) );
@@ -348,30 +348,30 @@ class PDFDocumentWithTables extends PDFDocument {
             row = cells;  
           }
     
-          row.forEach((cell,i) => {
+          row.forEach((cell, index) => {
     
             let text = cell;
     
             // object
             // read cell and get label of object
-            if( typeof cell === 'object' ){
+            if(typeof cell === 'object') {
               // define label
               text = String(cell.label);
               // apply font size on calc about height row 
               cell.hasOwnProperty('options') && prepareRowOptions(cell);
             }
     
-            text = String(text).replace('bold:','').replace('size','');
+            text = String(text).replace('bold:','').replace('size',''); // TODO: Pecionata da rimuovere
             
             // cell padding
-            cellp = prepareCellPadding(table.headers[i].padding || options.padding || 0);
+            cellp = prepareCellPadding(table.headers[index].padding || options.padding || 0);
             // cellp = prepareCellPadding(options.padding || 0);
             //  - (cellp.left + cellp.right + (columnSpacing * 2))
             // console.log(cellp);
     
             // calc height size of string
             let cellHeight = this.heightOfString(text, {
-              width: columnsWidth[i] - (cellp.left + cellp.right),
+              width: columnsWidth[index] - (cellp.left + cellp.right),
               align: 'left',
             });
 
@@ -439,9 +439,7 @@ class PDFDocumentWithTables extends PDFDocument {
         // Header
     
         const addHeader = () => { 
-   
-          // Allow the user to override style for headers
-          prepareHeader();
+          prepareHeader(); // * Allow the user to override style for headers
     
           // calc header height
           if(this.headerHeight === 0){
@@ -559,8 +557,6 @@ class PDFDocumentWithTables extends PDFDocument {
                 // check defination
                 width = width || columnsWidth[i];
                 align = headerAlign || align || 'left';
-                // force number
-                width = width >> 0;
         
                 // register renderer function
                 if(renderer && typeof renderer === 'string') {
