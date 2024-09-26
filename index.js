@@ -756,6 +756,8 @@ class PDFDocumentWithTables extends PDFDocument {
               this.font('Helvetica-Bold');
               text = text.replace('bold:','');
             }
+
+            if (row.isBold) this.font('Helvetica-Bold');
     
             // size
             if( String(text).indexOf('size') === 0 ){
